@@ -192,6 +192,26 @@ nvinfer1::ITensor* tensor_to_const(ConversionCtx* ctx, at::Tensor t, const std::
   return out;
 }
 
+nvinfer1::DataType ElementWiseOpratingDataType(nvinfer1::DataType self, nvinfer1::DataType other, bool inplace) {
+  using dt = nvinfer1::DataType;
+  dt op_type;
+  if (self == dt::kFLOAT || other == dt::kFLOAT) {
+    op_type = dt::kFLOAT;
+  } else if (self == dt::kHALF || other == dt::kHALF) {
+    if (self == dt::kINT32 || other == dt::kINT32)
+      op_type = dt::kFLOAT;
+    else
+      op_type = dt::kHALF;
+  } else if (self != dt::kINT32 && other != dt::kINT32) {
+    op_type = dt::kINT8;
+  } else {
+    op_type = dt::kINT32;
+  }
+  
+  TORCHTRT_CHECK(!inplace || op_type == self, "Cannot change data type of self for inplace elementwise operation");
+  return op_type;
+}
+
 } // namespace converters
 } // namespace conversion
 } // namespace core

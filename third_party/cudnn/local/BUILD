@@ -30,7 +30,7 @@ cc_import(
     shared_library = select({
         ":aarch64_linux": "lib/aarch64-linux-gnu/libcudnn.so",
         ":windows": "bin/cudnn64_7.dll",  #Need to configure specific version for windows
-        "//conditions:default": "lib/x86_64-linux-gnu/libcudnn.so",
+        "//conditions:default": "lib64/libcudnn.so",
     }),
     visibility = ["//visibility:private"],
 )

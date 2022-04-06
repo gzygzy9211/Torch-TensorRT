@@ -47,6 +47,8 @@ nvinfer1::ITensor* castITensor(ConversionCtx* ctx, nvinfer1::ITensor* tensor, nv
 // Freeze an at::Tensor in a IConstant layer
 nvinfer1::ITensor* tensor_to_const(ConversionCtx* ctx, at::Tensor t, const std::string& name = std::string());
 
+nvinfer1::DataType ElementWiseOpratingDataType(nvinfer1::DataType self, nvinfer1::DataType other, bool inplace);
+
 } // namespace converters
 } // namespace conversion
 } // namespace core

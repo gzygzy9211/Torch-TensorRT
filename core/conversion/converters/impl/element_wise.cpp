@@ -68,6 +68,12 @@ auto element_wise_registrations TORCHTRT_UNUSED =
                       other = scaleLayer->getOutput(0);
                     }
 
+                    const auto op_dtype = ElementWiseOpratingDataType(self->getType(), other->getType(), false);
+                    if (self->getType() != op_dtype)
+                      self = castITensor(ctx, self, op_dtype);
+                    if (other->getType() != op_dtype)
+                      other = castITensor(ctx, other, op_dtype);
+
                     auto add =
                         add_elementwise(ctx, nvinfer1::ElementWiseOperation::kSUM, self, other, util::node_info(n));
                     TORCHTRT_CHECK(add, "Unable to create add layer from node: " << *n);
@@ -96,6 +102,12 @@ auto element_wise_registrations TORCHTRT_UNUSED =
                       TORCHTRT_CHECK(scaleLayer, "Unable to create alpha*input layer from node: " << *n);
                       other = scaleLayer->getOutput(0);
                     }
+
+                    const auto op_dtype = ElementWiseOpratingDataType(self->getType(), other->getType(), true);
+                    if (self->getType() != op_dtype)
+                      self = castITensor(ctx, self, op_dtype);
+                    if (other->getType() != op_dtype)
+                      other = castITensor(ctx, other, op_dtype);
 
                     auto add =
                         add_elementwise(ctx, nvinfer1::ElementWiseOperation::kSUM, self, other, util::node_info(n));
@@ -197,6 +209,12 @@ auto element_wise_registrations TORCHTRT_UNUSED =
                       other = scaleLayer->getOutput(0);
                     }
 
+                    const auto op_dtype = ElementWiseOpratingDataType(self->getType(), other->getType(), false);
+                    if (self->getType() != op_dtype)
+                      self = castITensor(ctx, self, op_dtype);
+                    if (other->getType() != op_dtype)
+                      other = castITensor(ctx, other, op_dtype);
+
                     auto sub =
                         add_elementwise(ctx, nvinfer1::ElementWiseOperation::kSUB, self, other, util::node_info(n));
                     TORCHTRT_CHECK(sub, "Unable to create sub layer from node: " << *n);
@@ -243,6 +261,12 @@ auto element_wise_registrations TORCHTRT_UNUSED =
                       TORCHTRT_CHECK(scaleLayer, "Unable to create alpha*input layer from node: " << *n);
                       other = scaleLayer->getOutput(0);
                     }
+
+                    const auto op_dtype = ElementWiseOpratingDataType(self->getType(), other->getType(), true);
+                    if (self->getType() != op_dtype)
+                      self = castITensor(ctx, self, op_dtype);
+                    if (other->getType() != op_dtype)
+                      other = castITensor(ctx, other, op_dtype);
 
                     auto sub =
                         add_elementwise(ctx, nvinfer1::ElementWiseOperation::kSUB, self, other, util::node_info(n));
@@ -301,6 +325,12 @@ auto element_wise_registrations TORCHTRT_UNUSED =
                       self = scaleLayer->getOutput(0);
                     }
 
+                    const auto op_dtype = ElementWiseOpratingDataType(self->getType(), other->getType(), false);
+                    if (self->getType() != op_dtype)
+                      self = castITensor(ctx, self, op_dtype);
+                    if (other->getType() != op_dtype)
+                      other = castITensor(ctx, other, op_dtype);
+
                     auto rsub =
                         add_elementwise(ctx, nvinfer1::ElementWiseOperation::kSUB, other, self, util::node_info(n));
                     TORCHTRT_CHECK(rsub, "Unable to create rsub layer from node: " << *n);
@@ -315,6 +345,13 @@ auto element_wise_registrations TORCHTRT_UNUSED =
                     // Should implement self / other
                     auto self = args[0].ITensorOrFreeze(ctx);
                     auto other = args[1].ITensorOrFreeze(ctx);
+
+                    const auto op_dtype = ElementWiseOpratingDataType(self->getType(), other->getType(), false);
+                    if (self->getType() != op_dtype)
+                      self = castITensor(ctx, self, op_dtype);
+                    if (other->getType() != op_dtype)
+                      other = castITensor(ctx, other, op_dtype);
+
                     auto div =
                         add_elementwise(ctx, nvinfer1::ElementWiseOperation::kDIV, self, other, util::node_info(n));
 
@@ -345,6 +382,13 @@ auto element_wise_registrations TORCHTRT_UNUSED =
                     // TODO: Remove with functionalization
                     auto self = args[0].ITensorOrFreeze(ctx);
                     auto other = args[1].ITensorOrFreeze(ctx);
+
+                    const auto op_dtype = ElementWiseOpratingDataType(self->getType(), other->getType(), true);
+                    if (self->getType() != op_dtype)
+                      self = castITensor(ctx, self, op_dtype);
+                    if (other->getType() != op_dtype)
+                      other = castITensor(ctx, other, op_dtype);
+
                     auto div =
                         add_elementwise(ctx, nvinfer1::ElementWiseOperation::kDIV, self, other, util::node_info(n));
 
@@ -375,6 +419,13 @@ auto element_wise_registrations TORCHTRT_UNUSED =
                     // Should implement self * other
                     auto self = args[0].ITensorOrFreeze(ctx);
                     auto other = args[1].ITensorOrFreeze(ctx);
+
+                    const auto op_dtype = ElementWiseOpratingDataType(self->getType(), other->getType(), false);
+                    if (self->getType() != op_dtype)
+                      self = castITensor(ctx, self, op_dtype);
+                    if (other->getType() != op_dtype)
+                      other = castITensor(ctx, other, op_dtype);
+
                     auto mul =
                         add_elementwise(ctx, nvinfer1::ElementWiseOperation::kPROD, self, other, util::node_info(n));
                     TORCHTRT_CHECK(mul, "Unable to create mul layer from node: " << *n);
@@ -404,6 +455,13 @@ auto element_wise_registrations TORCHTRT_UNUSED =
                     // TODO: Remove with functionalization
                     auto self = args[0].ITensorOrFreeze(ctx);
                     auto other = args[1].ITensorOrFreeze(ctx);
+
+                    const auto op_dtype = ElementWiseOpratingDataType(self->getType(), other->getType(), true);
+                    if (self->getType() != op_dtype)
+                      self = castITensor(ctx, self, op_dtype);
+                    if (other->getType() != op_dtype)
+                      other = castITensor(ctx, other, op_dtype);
+
                     auto mul =
                         add_elementwise(ctx, nvinfer1::ElementWiseOperation::kPROD, self, other, util::node_info(n));
                     TORCHTRT_CHECK(mul, "Unable to create mul layer from node: " << *n);

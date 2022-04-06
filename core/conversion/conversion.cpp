@@ -232,6 +232,8 @@ void MarkOutputs(ConversionCtx* ctx, at::ArrayRef<const torch::jit::Value*> outp
         } else {
           TORCHTRT_THROW_ERROR("Unknown output type. Only a single tensor or a TensorList type is supported.");
         }
+      } else {
+        TORCHTRT_THROW_ERROR("Node not found in either ValueTensor or EvaluatedValue")
       }
     } else {
       std::string name = std::string("output_") + std::to_string(ctx->num_outputs);
