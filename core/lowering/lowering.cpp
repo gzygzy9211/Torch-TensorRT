@@ -76,7 +76,84 @@ torch::jit::Module LowerModule(const torch::jit::Module& mod, std::string method
   return mod_;
 }
 
-std::pair<std::shared_ptr<torch::jit::Graph>, std::vector<torch::jit::IValue>> Lower(
+static void EnumerateFlattenOutputs(const OutputLayout& layout, std::vector<torch::jit::Value*>& outputs) {
+
+  if (layout.type == OutputLayout::Type::Elem) {
+    outputs.push_back(layout.self);
+  } else {
+    TORCHTRT_ASSERT(layout.elements.size() > 0, "Invalid output layout during flatten outputs")
+    for (auto elem : layout.elements) {
+      EnumerateFlattenOutputs(elem, outputs);
+    }
+  }
+}
+
+std::vector<torch::jit::Value*> OutputLayout::outputs_value() const {
+  std::vector<torch::jit::Value*> ret;
+  EnumerateFlattenOutputs(*this, ret);
+  return ret;
+}
+
+static OutputLayout FlattenOutputsRecursive(torch::jit::Value* out) {
+
+  using torch::jit::TypeKind;
+
+  constexpr auto Elem = OutputLayout::Type::Elem;
+  constexpr auto Tuple = OutputLayout::Type::Tuple;
+  constexpr auto List = OutputLayout::Type::List;
+
+  if (out->type()->kind() == TypeKind::TupleType &&
+      out->node()->kind() == torch::jit::prim::TupleConstruct) {
+    OutputLayout layout({Tuple, out, {}});
+    for (auto inp : out->node()->inputs())
+      layout.elements.push_back(FlattenOutputsRecursive(inp));
+    return layout;
+
+  } else if (out->type()->kind() == TypeKind::ListType &&
+      out->node()->kind() == torch::jit::prim::ListConstruct) {
+    OutputLayout layout({List, out, {}});
+    for (auto inp : out->node()->inputs())
+      layout.elements.push_back(FlattenOutputsRecursive(inp));
+    return layout;
+
+  } else {
+    return OutputLayout({Elem, out, {}});
+  }
+}
+
+OutputLayout FlattenOutputs(std::shared_ptr<torch::jit::Graph>& g) {
+
+  using torch::jit::TypeKind;
+
+  constexpr auto Elem = OutputLayout::Type::Elem;
+  constexpr auto Tuple = OutputLayout::Type::Tuple;
+  constexpr auto List = OutputLayout::Type::List;
+
+  OutputLayout layout;
+  if (g->outputs().size() == 0) {
+    TORCHTRT_THROW_ERROR("The graph has no output")
+
+  } else if (g->outputs().size() > 1) {
+    layout = {Tuple, nullptr, {}};
+    for (auto out : g->outputs()) {
+      layout.elements.push_back(FlattenOutputsRecursive(out));
+    }
+
+  } else {
+    layout = FlattenOutputsRecursive(g->outputs()[0]);
+  }
+
+  while (g->outputs().size() > 0) { 
+    g->eraseOutput(g->outputs().size() - 1);
+  }
+  for (auto out : layout.outputs_value()) {
+    g->registerOutput(out);
+  }
+
+  return layout;
+}
+
+std::tuple<std::shared_ptr<torch::jit::Graph>, std::vector<torch::jit::IValue>, OutputLayout> Lower(
     const torch::jit::Module& mod,
     std::string method_name,
     const LowerInfo& lower_info) {
@@ -84,6 +161,9 @@ std::pair<std::shared_ptr<torch::jit::Graph>, std::vector<torch::jit::IValue>> L
   LOG_GRAPH("Before lowering: " << *mod.get_method(method_name).graph());
   auto lowered_mod = lower_info.unfreeze_module ? mod : LowerModule(mod, method_name, lower_info);
   auto g = lowered_mod.get_method(method_name).graph();
+
+  auto output_layout = FlattenOutputs(g);
+  LOG_GRAPH("After flatten outputs: " << *g);
 
   LOG_GRAPH("LibTorch Lowering");
   auto graph_and_ivalues = torch::jit::LowerGraph(*g, lowered_mod._ivalue());
@@ -100,7 +180,7 @@ std::pair<std::shared_ptr<torch::jit::Graph>, std::vector<torch::jit::IValue>> L
   // lowering::LowerBlock(g->block());
 
   LOG_INFO("Lowered Graph: " << *(graph_and_ivalues.first));
-  return graph_and_ivalues;
+  return std::make_tuple(graph_and_ivalues.first, graph_and_ivalues.second, output_layout);
 }
 
 } // namespace lowering

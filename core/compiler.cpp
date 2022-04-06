@@ -99,13 +99,17 @@ void AddEngineToGraph(
 
   // If there are multiple output tensors from TensorRT we wrap them in a tuple
   // to return, convert to tuple only when we only have 1 segmented graph
-  if (!fallback && unpack_node->outputs().size() > 1) {
-    // Creates prim::TupleConstruct(<output tensors>) using outputs of the
-    // unpack node
-    auto return_tuple_node = g->createTuple(unpack_node->outputs());
-    g->block()->appendNode(return_tuple_node);
-    // Set the output as the produced tuple
-    g->registerOutput(return_tuple_node->outputs()[0]);
+  if (false && !fallback && unpack_node->outputs().size() > 1) {
+    // // Creates prim::TupleConstruct(<output tensors>) using outputs of the
+    // // unpack node
+    // auto return_tuple_node = g->createTuple(unpack_node->outputs());
+    // g->block()->appendNode(return_tuple_node);
+    // // Set the output as the produced tuple
+    // g->registerOutput(return_tuple_node->outputs()[0]);
+
+    // now tuple construct is down by re-constructing output layout (not only
+    //   simply pack multiple tensors into a tuple)
+    /* noop */
   } else {
     // if fallback is enabled, multiple outputs will be registered
     for (size_t i = 0; i < unpack_node->outputs().size(); ++i) {
@@ -118,11 +122,58 @@ void AddEngineToGraph(
   return;
 }
 
+static torch::jit::Value *ApplyOutputLayoutNode(
+    std::shared_ptr<torch::jit::Graph>& g,
+    const lowering::OutputLayout& layout_node,
+    int& g_flat_output_idx) {
+
+  if (layout_node.type == lowering::OutputLayout::Type::Elem) {
+    auto ret = g->outputs()[g_flat_output_idx];
+    g_flat_output_idx ++;
+    return ret;
+
+  } else {
+    std::vector<torch::jit::Value*> new_elements;
+    std::vector<c10::TypePtr> element_types;
+    for (auto elem_node : layout_node.elements) {
+      new_elements.push_back(ApplyOutputLayoutNode(g, elem_node, g_flat_output_idx));
+      element_types.push_back(new_elements.back()->type());
+    }
+    auto is_tuple = layout_node.type == lowering::OutputLayout::Type::Tuple;
+    c10::TypePtr output_type = is_tuple ?
+      static_cast<c10::TypePtr>(c10::TupleType::create(element_types)) :
+      static_cast<c10::TypePtr>(c10::ListType::create(c10::AnyType::create())); 
+    auto construct_node = g->create(is_tuple ?
+      torch::jit::prim::TupleConstruct : torch::jit::prim::ListConstruct, new_elements);
+    g->block()->appendNode(construct_node);
+    construct_node->output(0)->setType(output_type);
+    return construct_node->output(0);
+  }
+
+}
+
+void ApplyOutputLayout(
+    std::shared_ptr<torch::jit::Graph>& g,
+    const lowering::OutputLayout& layout) {
+
+  auto flatten_output = layout.outputs_value();
+  TORCHTRT_ASSERT(flatten_output.size() == g->outputs().size(),
+    "Number of outputs mismatch during re-constructing output layout");
+
+  int output_idx = 0;
+  auto real_output = ApplyOutputLayoutNode(g, layout, output_idx);
+  while (g->outputs().size() > 0) {
+    g->eraseOutput(g->outputs().size() - 1);
+  }
+  g->registerOutput(real_output);
+
+}
+
 bool CheckMethodOperatorSupport(const torch::jit::script::Module& mod, std::string method_name) {
   // Go through Lowering to simplify graph
   auto graph_and_parameters = lowering::Lower(mod, method_name, lowering::LowerInfo());
 
-  auto g = graph_and_parameters.first;
+  auto g = std::get<0>(graph_and_parameters);
   LOG_DEBUG(*g << "(CheckMethodOperatorSupport)\n");
 
   return conversion::VerifyConverterSupportForBlock(g->block());
@@ -353,7 +404,9 @@ uint64_t GetRecommendedWorkspaceSize(const runtime::CudaDevice& device) {
 
 std::string ConvertGraphToTRTEngine(const torch::jit::script::Module& mod, std::string method_name, CompileSpec cfg) {
   // Go through Lowering to simplify graph and extract weight parameters
-  auto graph_and_parameters = lowering::Lower(mod, method_name, cfg.lower_info);
+  auto lowering_result = lowering::Lower(mod, method_name, cfg.lower_info);
+  auto graph_and_parameters = std::make_pair(
+    std::get<0>(lowering_result), std::get<1>(lowering_result));;
 
   auto g = graph_and_parameters.first;
   TORCHTRT_CHECK(
@@ -396,7 +449,12 @@ torch::jit::Module CompileGraph(const torch::jit::Module& mod, CompileSpec cfg) 
     if (method.name().compare("forward") == 0) {
       auto new_g = std::make_shared<torch::jit::Graph>();
 
-      auto graph_and_parameters = lowering::Lower(mod, method.name(), cfg.lower_info);
+      // here lowering tuples (by torch::jit::LowerAllTuples) at output is not expected,
+      // so we record the output structure here and resume it after engine(s) are added
+      // to new graph      
+      auto lowering_result = lowering::Lower(mod, method.name(), cfg.lower_info);
+      auto graph_and_parameters = std::make_pair(
+        std::get<0>(lowering_result), std::get<1>(lowering_result));
 
       auto g = graph_and_parameters.first;
       auto params = graph_and_parameters.second;
@@ -435,6 +493,7 @@ torch::jit::Module CompileGraph(const torch::jit::Module& mod, CompileSpec cfg) 
         auto engine = conversion::ConvertBlockToEngine(g->block(), cfg.convert_info, static_params);
         AddEngineToGraph(new_mod, new_g, engine, cuda_device);
       }
+      ApplyOutputLayout(new_g, std::get<2>(lowering_result));
       auto new_method = new_mod._ivalue()->compilation_unit()->create_function(method.name(), new_g);
       auto schema = util::GenerateGraphSchema(new_method->name(), new_g);
       new_mod.type()->addMethod(new_method);
