@@ -73,9 +73,21 @@ c10::IValue preprocess(
 
 static const std::string trt("tensorrt");
 static auto reg = torch::jit::backend<TensorRTBackend>(trt);
+#if ((TORCH_VERSION_MAJOR == 1) && (TORCH_VERSION_MINOR <= 8))
+#else
 static auto preproc_reg =
     torch::jit::backend_preprocess_register(trt, torch::jit::detail::BackendPreprocessFunction(preprocess));
+#endif
 } // namespace
+
+
+#if ((TORCH_VERSION_MAJOR == 1) && (TORCH_VERSION_MINOR <= 8))
+c10::IValue TensorRTBackend::preprocess(c10::IValue mod, c10::impl::GenericDict method_compile_spec) {
+  TORCHTRT_CHECK(mod.isModule(), "Expect IValue to be a Module");
+  return torch_tensorrt::torchscript::backend::preprocess(mod.toModule(), method_compile_spec);
+}
+
+#endif
 
 } // namespace backend
 } // namespace torchscript

@@ -1,4 +1,5 @@
 #include "torch/csrc/jit/runtime/custom_operator.h"
+#include <torch/version.h>
 
 namespace torch {
 namespace jit {
@@ -12,7 +13,11 @@ RegisterOperators trt_placeholder_ops_reg({
     /// to a TRT constant Tensor
     Operator(
         "trt::const(Tensor val) -> Tensor",
+        #if ((TORCH_VERSION_MAJOR == 1) && (TORCH_VERSION_MINOR <= 8))
+        [](Stack* stack) { /*noop*/ },
+        #else
         [](Stack& stack) { /*noop*/ },
+        #endif
         aliasAnalysisFromSchema()),
 });
 
