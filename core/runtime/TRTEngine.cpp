@@ -52,9 +52,9 @@ TRTEngine::TRTEngine(std::string mod_name, std::string serialized_engine, CudaDe
 
   if (device_info.device_type == nvinfer1::DeviceType::kGPU) {
     allocator = std::make_shared<TorchAllocator>(device_info);
-    if (allocator.get() != nullptr) {
-      rt->setGpuAllocator(allocator.get());
-    }
+    // if (allocator.get() != nullptr) {
+    //   rt->setGpuAllocator(allocator.get());
+    // }
   } else {
     allocator.reset((TorchAllocator*)nullptr);
   }
