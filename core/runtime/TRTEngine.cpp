@@ -3,6 +3,9 @@
 #include <cuda_runtime.h>
 #include "NvInfer.h"
 #include "torch/csrc/jit/frontend/function_schema_parser.h"
+#include "c10/core/DeviceGuard.h"
+#include "c10/core/StreamGuard.h"
+#include "c10/cuda/CUDAStream.h"
 
 #include "core/runtime/runtime.h"
 #include "core/util/prelude.h"
@@ -47,12 +50,27 @@ TRTEngine::TRTEngine(std::string mod_name, std::string serialized_engine, CudaDe
 
   rt = make_trt(nvinfer1::createInferRuntime(util::logging::get_logger()));
 
+  if (device_info.device_type == nvinfer1::DeviceType::kGPU) {
+    allocator = std::make_shared<TorchAllocator>(device_info);
+    if (allocator.get() != nullptr) {
+      rt->setGpuAllocator(allocator.get());
+    }
+  } else {
+    allocator.reset((TorchAllocator*)nullptr);
+  }
+  LOG_DEBUG("Runtime created");
+
   name = slugify(mod_name);
 
   cuda_engine = make_trt(rt->deserializeCudaEngine(serialized_engine.c_str(), serialized_engine.size()));
   TORCHTRT_CHECK((cuda_engine.get() != nullptr), "Unable to deserialize the TensorRT engine");
+  LOG_DEBUG("Engine loaded");
 
-  exec_ctx = make_trt(cuda_engine->createExecutionContext());
+  exec_ctx = make_trt(allocator.get() == nullptr ?
+    cuda_engine->createExecutionContext() :
+    cuda_engine->createExecutionContextWithoutDeviceMemory());
+  // exec_ctx = make_trt(cuda_engine->createExecutionContext());
+  LOG_DEBUG("Context created");
 
   uint64_t inputs = 0;
   uint64_t outputs = 0;
@@ -80,6 +98,63 @@ TRTEngine& TRTEngine::operator=(const TRTEngine& other) {
   exec_ctx = other.exec_ctx;
   num_io = other.num_io;
   return (*this);
+}
+
+TRTEngine::~TRTEngine() {
+  LOG_DEBUG("[TRTEngine] Deconstructing");
+  exec_ctx.reset();
+  LOG_DEBUG("[TRTEngine] Context Released");
+  cuda_engine.reset();
+  LOG_DEBUG("[TRTEngine] Engine Released");
+  rt.reset();
+  LOG_DEBUG("[TRTEngine] Runtime Released");
+  allocator.reset();
+  LOG_DEBUG("[TRTEngine] Allocator (if exists) Released");
+}
+
+TorchAllocator::TorchAllocator(CudaDevice device) : stream_(c10::cuda::getDefaultCUDAStream()) {
+  TORCHTRT_ASSERT(device.device_type != nvinfer1::DeviceType::kDLA, "we do not support DLA device for now");
+  c10::DeviceGuard guard(c10::Device(c10::DeviceType::CUDA, device.id));
+  auto c10_stream = c10::cuda::getCurrentCUDAStream();
+  stream_ = c10_stream;
+  device_ = CudaDevice(c10_stream.device().index(), nvinfer1::DeviceType::kGPU);
+}
+
+CudaDevice TorchAllocator::get_device_id() const { return device_; }
+c10::cuda::CUDAStream& TorchAllocator::get_stream() { return stream_; }
+at::cuda::CUDAEvent& TorchAllocator::get_event() { return event_; }
+cudaStream_t TorchAllocator::get_cuda_stream() const { return stream_.stream(); }
+
+#define PTR_STR(p) (reinterpret_cast<std::ostringstream*>(&(std::ostringstream() << (p)))->str())
+
+void* TorchAllocator::allocate(uint64_t const size, uint64_t const alignment, nvinfer1::AllocatorFlags const flags) noexcept {
+  c10::StreamGuard guard(stream_);
+  std::lock_guard<std::mutex> lock(mutex_);
+  try {
+    LOG_DEBUG("[TorchAllocator] Allocating bytes: " << size);
+    auto blob = at::empty({int64_t(size + alignment)},
+                          c10::TensorOptions(c10::kByte).device(stream_.device()));
+    auto ptr = blob.data_ptr();
+    auto mis_align = (uint64_t)ptr % alignment;
+    ptr = ptr + alignment - mis_align;
+    LOG_DEBUG("[TorchAllocator] Allocated at: " + PTR_STR(ptr));
+    blobs_.emplace(ptr, blob);
+    LOG_DEBUG("[TorchAllocator] Before return, use count = " << blob.use_count());
+    return ptr;
+  } catch (...) {
+    return nullptr;
+  }
+}
+
+void TorchAllocator::free(void* const memory) noexcept {
+  LOG_DEBUG("[TorchAllocator] Try Freeing bytes at: " + PTR_STR(memory));
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = blobs_.find(memory);
+  if (it != blobs_.end()) {
+    LOG_DEBUG("[TorchAllocator] Freeing " << it->second.numel() << " bytes (with alignment) at: " <<
+      PTR_STR(memory) << ", use count = " << it->second.use_count());
+    blobs_.erase(it);
+  }
 }
 
 // TODO: Implement a call method

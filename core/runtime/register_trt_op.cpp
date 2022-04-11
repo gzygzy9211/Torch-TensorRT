@@ -1,4 +1,5 @@
 #include "c10/cuda/CUDAStream.h"
+#include "ATen/cuda/CUDAEvent.h"
 
 #include "torch/csrc/jit/runtime/custom_operator.h"
 #include "torch/torch.h"
@@ -115,8 +116,27 @@ std::vector<at::Tensor> execute_engine(std::vector<at::Tensor> inputs, c10::intr
 
   // nvinfer1::IExecutionContext::enqueue is not thread safe and we need a mutex for it.
   std::unique_lock<std::mutex> lock(compiled_engine->mu);
-  compiled_engine->exec_ctx->enqueueV2(gpu_handles.data(), stream, nullptr);
-
+  if (compiled_engine->allocator.get() == nullptr) {
+    compiled_engine->exec_ctx->enqueueV2(gpu_handles.data(), stream, nullptr);
+  } else {
+    auto is_same_stream = stream.stream() == compiled_engine->allocator->get_cuda_stream();
+    auto size = compiled_engine->cuda_engine->getDeviceMemorySize();
+    auto buf = compiled_engine->allocator->allocate(size, 1024, 0);
+    compiled_engine->exec_ctx->setDeviceMemory(buf);
+    if (!is_same_stream) {
+      auto& event = compiled_engine->allocator->get_event();
+      event.record(stream);
+      event.block(compiled_engine->allocator->get_stream());
+    }
+    compiled_engine->exec_ctx->enqueueV2(gpu_handles.data(),
+      compiled_engine->allocator->get_cuda_stream(), nullptr);
+    if (!is_same_stream) {
+      auto& event = compiled_engine->allocator->get_event();
+      event.record(compiled_engine->allocator->get_stream());
+      event.block(stream);
+    }
+    compiled_engine->allocator->free(buf);
+  }
   return outputs;
 }
 

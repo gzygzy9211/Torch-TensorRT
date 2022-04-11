@@ -7,6 +7,9 @@
 #include "NvInfer.h"
 #include "core/util/prelude.h"
 #include "torch/custom_class.h"
+#include "ATen/Tensor.h"
+#include "c10/cuda/CUDAStream.h"
+#include "ATen/cuda/CUDAEvent.h"
 
 namespace torch_tensorrt {
 namespace core {
@@ -41,6 +44,23 @@ std::vector<CudaDevice> find_compatible_devices(const CudaDevice& target_device)
 std::string serialize_device(CudaDevice& cuda_device);
 CudaDevice deserialize_device(std::string device_info);
 
+class TorchAllocator : public nvinfer1::IGpuAllocator {
+public:
+  virtual void* allocate(uint64_t const size, uint64_t const alignment, nvinfer1::AllocatorFlags const flags) noexcept;
+  virtual void free(void* const memory) noexcept;
+  c10::cuda::CUDAStream& get_stream();
+  at::cuda::CUDAEvent& get_event();
+  cudaStream_t get_cuda_stream() const;
+  CudaDevice get_device_id() const;
+  TorchAllocator(CudaDevice device);
+private:
+  c10::cuda::CUDAStream stream_;
+  CudaDevice device_;
+  std::map<void*, at::Tensor> blobs_;
+  std::mutex mutex_;
+  at::cuda::CUDAEvent event_;
+};
+
 struct TRTEngine : torch::CustomClassHolder {
   // Each engine needs it's own runtime object
   std::shared_ptr<nvinfer1::IRuntime> rt;
@@ -50,11 +70,12 @@ struct TRTEngine : torch::CustomClassHolder {
   std::string name;
   std::mutex mu;
   CudaDevice device_info;
+  std::shared_ptr<TorchAllocator> allocator;
 
   std::unordered_map<uint64_t, uint64_t> in_binding_map;
   std::unordered_map<uint64_t, uint64_t> out_binding_map;
 
-  ~TRTEngine() = default;
+  virtual ~TRTEngine();  // need to make sure allocator is the last member to be destructed
   TRTEngine(std::string serialized_engine, CudaDevice cuda_device);
   TRTEngine(std::vector<std::string> serialized_info);
   TRTEngine(std::string mod_name, std::string serialized_engine, CudaDevice cuda_device);
