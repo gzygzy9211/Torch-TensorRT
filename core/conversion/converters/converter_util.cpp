@@ -116,6 +116,7 @@ nvinfer1::ILayer* add_elementwise(
     std::swap(self, other);
     swapSelfOther = false;
   }
+  LOG_DEBUG("self.dtype = " + std::to_string((int32_t)self->getType()) + ", other.dtype = " + std::to_string((int32_t)other->getType()));
   auto ele = ctx->net->addElementWise(*self, *other, op);
   ele->setName(name.c_str());
   return ele;
@@ -128,8 +129,14 @@ nvinfer1::ITensor* castITensor(ConversionCtx* ctx, nvinfer1::ITensor* tensor, nv
 
     auto id_layer = ctx->net->addIdentity(*tensor);
     TORCHTRT_CHECK(id_layer, "Unable to create identity layer for ITensor: " << tensor_id.str());
+    #if NV_TENSORRT_MAJOR > 7
+    // seems that starting from TRT 8, integer <-> floating numbers conversion can
+    // no longer be implicit
+    id_layer->setOutputType(0, dtype);
+    #endif
     auto casted_tensor = id_layer->getOutput(0);
     casted_tensor->setType(dtype);
+    TORCHTRT_CHECK(casted_tensor->getType() == dtype, "Failed to convert " << tensor_id.str() << " from " << tensor->getType() << " to " << dtype);
 
     LOG_DEBUG(ctx->logger, "Casting ITensor " << tensor_id.str() << " from " << tensor->getType() << " to " << dtype);
 

@@ -124,7 +124,7 @@ new_local_repository(
 
 new_local_repository(
    name = "tensorrt",
-   path = "/root/tensorrt/TensorRT-7.2.2.3",
+   path = "/root/tensorrt/TensorRT-8.4.0.6",
    build_file = "@//third_party/tensorrt/local:BUILD"
 )
 
