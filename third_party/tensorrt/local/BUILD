@@ -87,11 +87,12 @@ cc_library(
         "nvinfer_headers",
         "nvinfer_lib",
         "@cuda//:cudart",
-        "@cudnn",
-    ] + select({
-        ":windows": ["@cuda//:cublas"],
-        "//conditions:default": ["@cuda//:cublas"],
-    }),
+    ],
+    #     "@cudnn",
+    # ] + select({
+    #     ":windows": ["@cuda//:cublas"],
+    #     "//conditions:default": ["@cuda//:cublas"],
+    # }),
 )
 
 ####################################################################################
@@ -306,11 +307,12 @@ cc_library(
     deps = [
         "nvinfer",
         "@cuda//:cudart",
-        "@cudnn",
-    ] + select({
-        ":windows": ["@cuda//:cublas"],
-        "//conditions:default": ["@cuda//:cublas"],
-    }),
+    ],
+    #     "@cudnn",
+    # ] + select({
+    #     ":windows": ["@cuda//:cublas"],
+    #     "//conditions:default": ["@cuda//:cublas"],
+    # }),
     alwayslink = True,
     copts = [
         "-pthread"

@@ -44,11 +44,11 @@ new_local_repository(
     path = "/root/cuda-11.1.1/",
 )
 
-new_local_repository(
-    name = "cublas",
-    build_file = "@//third_party/cublas:BUILD",
-    path = "/root/cuda-11.1.1/",
-)
+# new_local_repository(
+#     name = "cublas",
+#     build_file = "@//third_party/cublas:BUILD",
+#     path = "/root/cuda-11.1.1/",
+# )
 #############################################################################################################
 # Tarballs and fetched dependencies (default - use in cases when building from precompiled bin and tarballs)
 #############################################################################################################
@@ -116,11 +116,11 @@ new_local_repository(
     build_file = "third_party/libtorch/BUILD"
 )
 
-new_local_repository(
-    name = "cudnn",
-    path = "/root/cuda-11.1.1",
-    build_file = "@//third_party/cudnn/local:BUILD"
-)
+# new_local_repository(
+#     name = "cudnn",
+#     path = "/root/cuda-11.1.1",
+#     build_file = "@//third_party/cudnn/local:BUILD"
+# )
 
 new_local_repository(
    name = "tensorrt",

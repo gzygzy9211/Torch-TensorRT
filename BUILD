@@ -75,7 +75,7 @@ pkg_tar(
         ":include",
         ":include_core",
     ] + select({
-        ":windows": [],
+        ":windows": [":bin"],
         "//conditions:default": [":bin"],
     }),
 )

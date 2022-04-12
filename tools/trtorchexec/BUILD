@@ -10,4 +10,5 @@ cc_binary(
         "@libtorch",
         "@libtorch//:caffe2",
     ],
+    linkopts = ["-Wl,--unresolved-symbols=ignore-in-shared-libs"]
 )

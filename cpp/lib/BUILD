@@ -7,7 +7,8 @@ cc_binary(
         "//core/plugins:torch_tensorrt_plugins"
     ],
     linkstatic = True,
-    linkshared = True
+    linkshared = True,
+    linkopts = ["-Wl,-rpath,$$ORIGIN"],
 )
 
 cc_binary(
@@ -19,6 +20,7 @@ cc_binary(
         "//core/runtime:runtime",
         "//core/plugins:torch_tensorrt_plugins"
     ],
+    linkopts = ["-Wl,-rpath,$$ORIGIN"],
 )
 
 cc_binary(
@@ -29,6 +31,7 @@ cc_binary(
     deps = [
         "//cpp:torch_tensorrt",
     ],
+    linkopts = ["-Wl,-rpath,$$ORIGIN"],
 )
 
 cc_binary(
