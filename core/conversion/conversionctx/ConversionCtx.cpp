@@ -125,10 +125,12 @@ ConversionCtx::ConversionCtx(BuilderSettings build_settings)
   cfg->setDefaultDeviceType(settings.device.device_type);
   cfg->setEngineCapability(settings.capability);
   // disable cudnn bacause cudnn that TRT uses probably conflicts with the one used by torch
+  #if NV_TENSORRT_MAJOR >= 8
   cfg->setTacticSources(
     (1U << (uint32_t)nvinfer1::TacticSource::kCUBLAS) |
     (1U << (uint32_t)nvinfer1::TacticSource::kCUBLAS_LT)
   );
+  #endif
 
   if (settings.device.device_type == nvinfer1::DeviceType::kDLA) {
     auto nbDLACores = builder->getNbDLACores();

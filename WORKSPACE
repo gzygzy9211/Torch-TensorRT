@@ -41,7 +41,7 @@ local_repository(
 new_local_repository(
     name = "cuda",
     build_file = "@//third_party/cuda:BUILD",
-    path = "/root/cuda-11.1.1/",
+    path = "/path/to/cuda",
 )
 
 # new_local_repository(
@@ -106,13 +106,13 @@ new_local_repository(
 
 new_local_repository(
     name = "libtorch",
-    path = "/root/torch-1.8.1+cu111/lib64/python3.6/site-packages/torch",
+    path = "/path/to/torch",
     build_file = "third_party/libtorch/BUILD"
 )
 
 new_local_repository(
     name = "libtorch_pre_cxx11_abi",
-    path = "/root/torch-1.8.1+cu111/lib64/python3.6/site-packages/torch",
+    path = "/path/to/torch",
     build_file = "third_party/libtorch/BUILD"
 )
 
@@ -124,7 +124,7 @@ new_local_repository(
 
 new_local_repository(
    name = "tensorrt",
-   path = "/root/tensorrt/TensorRT-8.4.0.6",
+   path = "/path/to/tensorrt",
    build_file = "@//third_party/tensorrt/local:BUILD"
 )
 

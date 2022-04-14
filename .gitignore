@@ -8,6 +8,7 @@ bazel-TRTorch
 bazel-trtorch-testing
 bazel-torch-tensorrt
 bazel-Torch-TensorRT
+WORKSPACE.bazel
 third_party/pytorch
 *.jit
 *.jit.pt

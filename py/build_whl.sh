@@ -4,7 +4,14 @@
 
 cd /workspace/Torch-TensorRT/py
 
+# git checkout ../WORKSPACE
+# take original "WORKSPACE" as a template to generate "WORKSPACE.bazel",
+#     which will be used to build python package
+
 export CXX=g++
+# fill the path of dependency below
+export CUDNN_HOME=/path/to/cudnn/
+export TENSORRT_HOME=/path/to/tensorrt
 
 build_py36() {
     /opt/python/cp36-cp36m/bin/python -m pip install -r requirements.txt

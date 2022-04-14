@@ -10,6 +10,7 @@ from distutils.cmd import Command
 from wheel.bdist_wheel import bdist_wheel
 
 from torch.utils import cpp_extension
+import torch
 from shutil import copyfile, rmtree
 
 import subprocess
@@ -53,6 +54,14 @@ if platform.uname().processor == "aarch64":
         JETPACK_VERSION = "4.6"
 
 
+TENSORRT_HOME = os.environ.get('TENSORRT_HOME', None)
+assert TENSORRT_HOME is not None, 'specify tensorrt path via environment variable TENSORRT_HOME'
+
+
+CUDNN_HOME = os.environ.get('CUDNN_HOME', None)
+assert CUDNN_HOME is not None, 'specify cudnn path via environment variable CUDNN_HOME'
+
+
 def which(program):
     import os
 
@@ -80,7 +89,111 @@ if BAZEL_EXE is None:
         sys.exit("Could not find bazel in PATH")
 
 
+PATCH_ELF_EXE = dir_path + '/patchelf'
+
+
+def cuda_major() -> str:
+    from torch.version import cuda
+    return cuda.split('.')[0]
+
+
+def tensorrt_major() -> str:
+    return tensorrt_version().split('.')[0]
+
+
+def _grep_version_integer(path: str, macro: str) -> int:
+    import re
+    with open(path, 'r') as f:
+        ver_line = [line.strip() for line in f
+                    if line.startswith(f'#define {macro} ')][0]
+        ver_number = int(re.match(f'#define {macro} ([0-9]+)',
+                                  ver_line).groups()[0])
+        return ver_number
+
+
+def cudnn_version() -> str:
+    header_path = f'{CUDNN_HOME}/include/cudnn_version.h'
+    major = _grep_version_integer(header_path, 'CUDNN_MAJOR')
+    minor = _grep_version_integer(header_path, 'CUDNN_MINOR')
+    patch = _grep_version_integer(header_path, 'CUDNN_PATCHLEVEL')
+    return f'{major}.{minor}.{patch}'
+
+
+def tensorrt_version() -> str:
+    header_path = f'{TENSORRT_HOME}/include/NvInferVersion.h'
+    major = _grep_version_integer(header_path, 'NV_TENSORRT_MAJOR')
+    minor = _grep_version_integer(header_path, 'NV_TENSORRT_MINOR')
+    patch = _grep_version_integer(header_path, 'NV_TENSORRT_PATCH')
+    return f'{major}.{minor}.{patch}'
+
+
+def check_cuda_version():
+    from torch.version import cuda as torch_cuda_ver
+
+    _ = cpp_extension.library_paths(cuda=True)
+    cuda_ver_number = _grep_version_integer(
+        cpp_extension.CUDA_HOME + '/include/cuda.h', 'CUDA_VERSION'
+    )
+    cuda_ver = f'{cuda_ver_number // 1000}.{cuda_ver_number % 100 // 10}'
+
+    assert cuda_ver == torch_cuda_ver, \
+        f'cuda version not match: torch {torch_cuda_ver} vs toolkit {cuda_ver}'
+
+
+def check_tensorrt_version():
+    TRT_2_CUDNN = {
+        '8.4.0': '8.3.2',
+        '8.2.4': '8.2.1',
+        '8.2.3': '8.2.1',
+        '8.2.2': '8.2.1',
+        '8.2.1': '8.2.1',
+        '8.2.0': '8.2.1',
+        '8.0.3': '8.2.0',
+        '8.0.2': '8.2.0',
+        '8.0.1': '8.2.0',
+        '8.0.0': '8.2.0',
+        '7.2.3': '8.1.1',
+        '7.2.2': '8.0.5',
+        '7.2.1': '8.0.4',
+        '7.2.0': '8.0.2',
+        '7.1.3': '8.0.0',
+        '7.1.2': '8.0.0',
+        '7.1.0': '7.6.5',
+        '7.0.0': '7.6.5',
+    }
+    trt = tensorrt_version()
+    cudnn = cudnn_version()
+    if trt in TRT_2_CUDNN:
+        if TRT_2_CUDNN[trt] == cudnn:
+            return
+        elif tuple(TRT_2_CUDNN[trt].split('.')[0:2]) == tuple(cudnn.split('.')[0:2]):
+            print('=============== !! WARNING !! ================')
+            print(f'tensorrt {trt} expect cudnn {TRT_2_CUDNN[trt]}, but {cudnn} provided')
+            print('dismatch at patch-level')
+            print('=============== !! WARNING !! ================')
+            return
+        else:
+            assert TRT_2_CUDNN[trt] == cudnn, \
+                f'tensorrt {trt} expect cudnn {TRT_2_CUDNN[trt]}, but {cudnn} provided'
+    else:
+        print('=============== !! WARNING !! ================')
+        print(f'tensorrt {trt} is not recorded, cannot determine its compatibility')
+        print(f'with cudnn {cudnn}, build anyway')
+        print('=============== !! WARNING !! ================')       
+
+
 def build_libtorchtrt_pre_cxx11_abi(develop=True, use_dist_dir=True, cxx11_abi=False):
+    with open(f'{dir_path}/../WORKSPACE', 'r') as tpl, open(f'{dir_path}/../WORKSPACE.bazel', 'w') as wksp:
+        replacement = {
+            '/path/to/cuda': cpp_extension.CUDA_HOME,
+            '/path/to/tensorrt': TENSORRT_HOME,
+            '/path/to/torch': os.path.dirname(torch.__file__)
+        }
+        content = tpl.read()
+        for key, value in replacement.items():
+            content = content.replace(key, value)
+        wksp.write(content)
+
     cmd = [BAZEL_EXE, "build"]
     cmd.append("//:libtorchtrt")
     if develop:
@@ -125,7 +238,108 @@ def copy_libtorchtrt(multilinux=False):
     if multilinux:
         copyfile(dir_path + "/build/libtrtorch_build/libtrtorch.so", dir_path + '/trtorch/lib/libtrtorch.so')
     else:
+        if os.path.exists(f'{dir_path}/torch_tensorrt/lib'):
+            rmtree(f'{dir_path}/torch_tensorrt/lib') \
+                if os.path.isdir(f'{dir_path}/torch_tensorrt/lib') \
+                else os.remove(f'{dir_path}/torch_tensorrt/lib')
         os.system("tar -xzf ../bazel-bin/libtorchtrt.tar.gz --strip-components=2 -C " + dir_path + "/torch_tensorrt")
+
+    # TODO: complete windows building
+    for lib in os.listdir(f'{dir_path}/torch_tensorrt/lib'):
+        subprocess.check_call(['strip', f'{dir_path}/torch_tensorrt/lib/{lib}'])
+
+    print("copying dependent library")
+    _ = cpp_extension.library_paths(cuda=True)
+    suffix = '.so'
+    # topological sort by dependency (ignore thoese provided by torch or by system):
+    #   libcublasLt.so -> {}
+    #   libcublas.so -> static { libcublasLt.so }
+    #   libcudnn_ops_infer.so -> static { libcublas.so, libcublasLt.so }
+    #   libcudnn_ops_train.so -> static { libcudnn_ops_infer.so }
+    #   libcudnn.so -> dynamic { libcudnn_ops_infer.so, libcudnn_ops_train.so } (only satisfy libnvinfer_plugin)
+    #   libnvinfer.so -> dynamic { libcublas.so, libcublasLt.so, libnvinfer_builder_resource.so }
+    #                    (if trt == 7.x static { libcudnn.so, libmyelin.so, libcublas.so, libcublasLt.so })
+    #   libnvinfer_plugin.so -> static { libnvinfer.so, libcudnn.so, libcublas.so, libcublasLt.so }
+    #   libtorchtrt*.so -> static { libnvinfer.so, libnvinfer_plugin.so }
+    #
+    #   NOTE: for trt 7.x, libnvinfer will be dependent on the whole cudnn library   
+    # skip cudart because we always improt torch first and torch can provides cudart
+
+    # cublas & cublasLt
+    cublas_libs = [f'{cpp_extension.CUDA_HOME}/lib64/{file}'
+                   for file in os.listdir(cpp_extension.CUDA_HOME + '/lib64')
+                   if file.endswith(suffix) and 'cublas' in file]
+    assert (len(cublas_libs) == 2 and
+            any((f'cublas{suffix}' in lib for lib in cublas_libs)) and
+            any((f'cublasLt{suffix}' in lib for lib in cublas_libs))), str(cublas_libs)
+    for lib in cublas_libs:
+        # dst_link = f'{dir_path}/torch_tensorrt/lib/{os.path.basename(lib)}'
+        dst_entity = f'{dir_path}/torch_tensorrt/lib/{os.path.basename(lib)}.{cuda_major()}'
+        copyfile(lib, dst_entity)
+
+    # cudnn
+    cudnn_lib = f'{CUDNN_HOME}/lib/libcudnn{suffix}'
+    cudnn_components = [f'{CUDNN_HOME}/lib/{file}' for file in os.listdir(f'{CUDNN_HOME}/lib')
+                        if file.endswith(suffix) and
+                        ('_ops_' in file or int(tensorrt_major()) <= 7)]
+    assert os.path.exists(cudnn_lib)
+    assert (len(cudnn_components) >= 2 and
+            any((f'cudnn_ops_infer{suffix}' in lib for lib in cudnn_components)) and
+            any((f'cudnn_ops_train{suffix}' in lib for lib in cudnn_components)))
+    cudnn_libs_mapping = {}
+    for lib in cudnn_components:
+        ver_major = subprocess.check_output(['realpath', lib]).decode('utf8').split('.')[-3]
+        dst_entity = f'{dir_path}/torch_tensorrt/lib/{os.path.basename(lib)}.{ver_major}'
+        subprocess.check_call([PATCH_ELF_EXE, '--output', dst_entity, '--set-rpath', '$ORIGIN', lib])
+    for lib in (cudnn_lib,):
+        ver_major = subprocess.check_output(['realpath', lib]).decode('utf8').split('.')[-3]
+        sha256 = subprocess.check_output(['sha256sum', lib]).decode('utf8')[0:8]
+        libname = os.path.splitext(os.path.basename(lib))[0]
+        dst_entity = f'{dir_path}/torch_tensorrt/lib/{libname}-{sha256}{suffix}.{ver_major}'
+        subprocess.check_call([PATCH_ELF_EXE, '--output', dst_entity, '--set-rpath', '$ORIGIN', lib])
+        cudnn_libs_mapping[os.path.basename(f'{lib}.{ver_major}')] = os.path.basename(dst_entity)
+
+    replace_needed_cudnn = sum((['--replace-needed', key, value]
+                                for key, value in cudnn_libs_mapping.items()), [])
+
+    # nvinfer
+    nvinfer_libs = [f'{TENSORRT_HOME}/lib/{line}' for line in os.listdir(f'{TENSORRT_HOME}/lib/')
+                    if suffix in line and 'parser' not in line and
+                    not os.path.islink(f'{TENSORRT_HOME}/lib/{line}')]
+    nvinfer_libs_mapping = {}
+    assert (len(nvinfer_libs) >= 2 and
+            any((f'nvinfer{suffix}' in lib for lib in nvinfer_libs)) and
+            any((f'nvinfer_plugin{suffix}' in lib for lib in nvinfer_libs)) and 
+            all((lib.rsplit('.', 3)[0].endswith(suffix)
+                 for lib in nvinfer_libs))), str(nvinfer_libs)
+    for lib in nvinfer_libs:
+        # for lib as a static dependency, empirically it has a symlink without version suffix
+        if not os.path.exists(lib.rsplit('.', 3)[0]):
+            copyfile(lib, f'{dir_path}/torch_tensorrt/lib/{os.path.basename(lib)}')
+            continue
+        ver_major = subprocess.check_output(['realpath', lib]).decode('utf8').split('.')[-3]
+        sha256 = subprocess.check_output(['sha256sum', lib]).decode('utf8')[0:8]
+        libname = os.path.basename(lib).rsplit('.', 4)[0]
+        dst_entity = f'{dir_path}/torch_tensorrt/lib/{libname}-{sha256}{suffix}.{ver_major}'
+        cmd = [PATCH_ELF_EXE, '--output', dst_entity, '--set-rpath', '$ORIGIN', lib]
+        cmd += replace_needed_cudnn
+        subprocess.check_call(cmd)
+        nvinfer_libs_mapping[f'{libname}{suffix}.{ver_major}'] = os.path.basename(dst_entity)
+    print(nvinfer_libs_mapping)
+
+    replace_needed_nvinfer = sum((['--replace-needed', key, value]
+                                  for key, value in nvinfer_libs_mapping.items()), [])
+    for lib in nvinfer_libs_mapping.values():
+        cmd = [PATCH_ELF_EXE, f'{dir_path}/torch_tensorrt/lib/{lib}'] + replace_needed_nvinfer
+        subprocess.check_call(cmd)
+
+    # patch libtorchtrt
+    for lib in ('libtorchtrt.so', 'libtorchtrt_runtime.so', 'libtorchtrt_plugins.so'):
+        lib_fullpath = f'{dir_path}/torch_tensorrt/lib/{lib}'
+        assert os.path.exists(lib_fullpath)
+        subprocess.check_call([f'{dir_path}/patchelf', '--output', lib_fullpath,
+                               '--set-rpath', '$ORIGIN'] + replace_needed_nvinfer + [
+                               lib_fullpath])
 
 
 class DevelopCommand(develop):
@@ -139,6 +353,8 @@ class DevelopCommand(develop):
 
     def run(self):
         global CXX11_ABI
+        check_cuda_version()
+        check_tensorrt_version()
         build_libtorchtrt_pre_cxx11_abi(develop=True, cxx11_abi=CXX11_ABI)
         gen_version_file()
         copy_libtorchtrt()
@@ -156,6 +372,8 @@ class InstallCommand(install):
 
     def run(self):
         global CXX11_ABI
+        check_cuda_version()
+        check_tensorrt_version()
         build_libtorchtrt_pre_cxx11_abi(develop=False, cxx11_abi=CXX11_ABI)
         gen_version_file()
         copy_libtorchtrt()
@@ -173,6 +391,8 @@ class BdistCommand(bdist_wheel):
 
     def run(self):
         global CXX11_ABI
+        check_cuda_version()
+        check_tensorrt_version()
         build_libtorchtrt_pre_cxx11_abi(develop=False, cxx11_abi=CXX11_ABI)
         gen_version_file()
         copy_libtorchtrt()
