@@ -46,7 +46,7 @@ ConversionCtx::ConversionCtx(BuilderSettings build_settings)
     : settings(build_settings),
       logger(
           "[Torch-TensorRT TorchScript Conversion Context] - ",
-          util::logging::get_logger().get_reportable_severity(),
+          util::logging::get_logger().get_reportable_log_level(),
           util::logging::get_logger().get_is_colored_output_on()) {
   // TODO: Support FP16 and FP32 from JIT information
   if (settings.device.gpu_id) {

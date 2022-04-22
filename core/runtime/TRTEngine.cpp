@@ -136,7 +136,7 @@ void* TorchAllocator::allocate(uint64_t const size, uint64_t const alignment, nv
                           c10::TensorOptions(c10::kByte).device(stream_.device()));
     auto ptr = blob.data_ptr();
     auto mis_align = (uint64_t)ptr % alignment;
-    ptr = ptr + alignment - mis_align;
+    ptr = (uint8_t*)ptr + alignment - mis_align;
     LOG_DEBUG("[TorchAllocator] Allocated at: " + PTR_STR(ptr));
     blobs_.emplace(ptr, blob);
     LOG_DEBUG("[TorchAllocator] Before return, use count = " << blob.use_count());

@@ -35,11 +35,25 @@ cc_binary(
 )
 
 cc_binary(
-    name = "torch_tensorrt.dll",
+    name = "torchtrt.dll",
     srcs = [],
     linkshared = True,
     linkstatic = True,
     deps = [
         "//cpp:torch_tensorrt",
     ],
+)
+
+filegroup(
+    name = "torchtrt_import_name",
+    srcs = [":torchtrt.dll"],
+    output_group = "interface_library",
+    visibility = ["//visibility:private"],
+)
+
+genrule(
+    name = "torchtrt_win_import",
+    srcs = [":torchtrt_import_name"],
+    outs = ["torchtrt.lib"],
+    cmd = "cp $< $@",
 )

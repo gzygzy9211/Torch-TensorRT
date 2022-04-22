@@ -314,7 +314,7 @@ class Int8CacheCalibrator : Algorithm {
  */
 
 template <typename Algorithm = nvinfer1::IInt8EntropyCalibrator2, typename DataLoader>
-TORCHTRT_API inline Int8Calibrator<Algorithm, DataLoader> make_int8_calibrator(
+inline Int8Calibrator<Algorithm, DataLoader> make_int8_calibrator(
     DataLoader dataloader,
     const std::string& cache_file_path,
     bool use_cache) {
@@ -348,7 +348,7 @@ TORCHTRT_API inline Int8Calibrator<Algorithm, DataLoader> make_int8_calibrator(
  * @return Int8CacheCalibrator<Algorithm>
  */
 template <typename Algorithm = nvinfer1::IInt8EntropyCalibrator2>
-TORCHTRT_API inline Int8CacheCalibrator<Algorithm> make_int8_cache_calibrator(const std::string& cache_file_path) {
+inline Int8CacheCalibrator<Algorithm> make_int8_cache_calibrator(const std::string& cache_file_path) {
   return Int8CacheCalibrator<Algorithm>(cache_file_path);
 }
 

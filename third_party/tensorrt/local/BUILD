@@ -80,14 +80,28 @@ cc_import(
     visibility = ["//visibility:private"],
 )
 
+cc_import(
+    name = "nvinfer_lib_win",
+    shared_library = "lib/nvinfer.dll",
+    interface_library = "lib/nvinfer.lib",
+    visibility = ["//visibility:private"],
+)
+
 cc_library(
     name = "nvinfer",
     visibility = ["//visibility:public"],
-    deps = [
-        "nvinfer_headers",
-        "nvinfer_lib",
-        "@cuda//:cudart",
-    ],
+    deps = select({
+        ":windows": [
+            "nvinfer_headers",
+            "nvinfer_lib_win",
+            "@cuda//:cudart",
+        ],
+        "//conditions:default": [
+            "nvinfer_headers",
+            "nvinfer_lib",
+            "@cuda//:cudart",
+        ],
+    }),
     #     "@cudnn",
     # ] + select({
     #     ":windows": ["@cuda//:cublas"],
@@ -287,6 +301,13 @@ cc_library(
 
 ####################################################################################
 
+cc_import(
+    name = "nvinfer_plugin_lib_win",
+    shared_library = "lib/nvinfer_plugin.dll",
+    interface_library = "lib/nvinfer_plugin.lib",
+    visibility = ["//visibility:private"],
+)
+
 cc_library(
     name = "nvinferplugin",
     hdrs = select({
@@ -296,7 +317,7 @@ cc_library(
     }),
     srcs = select({
         ":aarch64_linux": ["lib/aarch64-linux-gnu/libnvinfer_plugin.so"],
-        ":windows": ["lib/nvinfer_plugin.dll"],
+        ":windows": [],
         "//conditions:default": ["lib/libnvinfer_plugin.so"],
     }),
     includes = select({
@@ -304,7 +325,10 @@ cc_library(
         ":windows": ["include/"],
         "//conditions:default": ["include/"],
     }),
-    deps = [
+    deps = select({
+        ":windows": ["nvinfer_plugin_lib_win"],
+        "//conditions:default": []
+    }) + [
         "nvinfer",
         "@cuda//:cudart",
     ],

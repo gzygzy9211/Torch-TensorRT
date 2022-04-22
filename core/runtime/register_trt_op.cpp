@@ -1,5 +1,4 @@
 #include "c10/cuda/CUDAStream.h"
-#include "ATen/cuda/CUDAEvent.h"
 
 #include "torch/csrc/jit/runtime/custom_operator.h"
 #include "torch/torch.h"

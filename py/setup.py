@@ -25,6 +25,8 @@ JETPACK_VERSION = None
 
 __version__ = '1.0.0'
 
+IS_WINDOWS = platform.system() == 'Windows'
+
 
 def get_git_revision_short_hash() -> str:
     return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
@@ -84,7 +86,7 @@ def which(program):
 BAZEL_EXE = which("bazelisk")
 
 if BAZEL_EXE is None:
-    BAZEL_EXE = which("bazel")
+    BAZEL_EXE = which("bazel" if not IS_WINDOWS else "bazel.exe")
     if BAZEL_EXE is None:
         sys.exit("Could not find bazel in PATH")
 
@@ -185,9 +187,9 @@ def check_tensorrt_version():
 def build_libtorchtrt_pre_cxx11_abi(develop=True, use_dist_dir=True, cxx11_abi=False):
     with open(f'{dir_path}/../WORKSPACE', 'r') as tpl, open(f'{dir_path}/../WORKSPACE.bazel', 'w') as wksp:
         replacement = {
-            '/path/to/cuda': cpp_extension.CUDA_HOME,
-            '/path/to/tensorrt': TENSORRT_HOME,
-            '/path/to/torch': os.path.dirname(torch.__file__)
+            '/path/to/cuda': cpp_extension.CUDA_HOME.replace('\\', '/'),
+            '/path/to/tensorrt': TENSORRT_HOME.replace('\\', '/'),
+            '/path/to/torch': os.path.dirname(torch.__file__).replace('\\', '/')
         }
         content = tpl.read()
         for key, value in replacement.items():
@@ -222,7 +224,7 @@ def build_libtorchtrt_pre_cxx11_abi(develop=True, use_dist_dir=True, cxx11_abi=F
 
 
 def gen_version_file():
-    if not os.path.exists(dir_path + '/torch_tensorrt/_version.py'):
+    if not IS_WINDOWS and not os.path.exists(dir_path + '/torch_tensorrt/_version.py'):
         os.mknod(dir_path + '/torch_tensorrt/_version.py')
 
     with open(dir_path + '/torch_tensorrt/_version.py', 'w') as f:
@@ -242,7 +244,21 @@ def copy_libtorchtrt(multilinux=False):
             rmtree(f'{dir_path}/torch_tensorrt/lib') \
                 if os.path.isdir(f'{dir_path}/torch_tensorrt/lib') \
                 else os.remove(f'{dir_path}/torch_tensorrt/lib')
-        os.system("tar -xzf ../bazel-bin/libtorchtrt.tar.gz --strip-components=2 -C " + dir_path + "/torch_tensorrt")
+        if IS_WINDOWS:
+            import tarfile
+            with tarfile.open(dir_path + '/../bazel-bin/libtorchtrt.tar.gz', mode='r:gz') as tarf:
+                for member in tarf.getmembers():
+                    if not member.isfile():
+                        continue
+                    if os.path.exists(dir_path + '/' + member.name):
+                        os.system(('attrib -R ' + dir_path + '/' + member.name).replace('/', '\\'))
+                        os.system(('del ' + dir_path + '/' + member.name).replace('/', '\\'))
+                    tarf.extract(member, dir_path)
+        else:
+            os.system("tar -xzf ../bazel-bin/libtorchtrt.tar.gz --strip-components=2 -C " + dir_path + "/torch_tensorrt")
+
+    if IS_WINDOWS:
+        return
 
     # TODO: complete windows building
     for lib in os.listdir(f'{dir_path}/torch_tensorrt/lib'):
@@ -458,10 +474,9 @@ ext_modules = [
         library_dirs=[(dir_path + '/torch_tensorrt/lib/'), "/opt/conda/lib/python3.6/config-3.6m-x86_64-linux-gnu"],
         libraries=["torchtrt"],
         include_dirs=[
-            dir_path + "torch_tensorrt/csrc", dir_path + "torch_tensorrt/include",
-            dir_path + "/../bazel-TRTorch/external/tensorrt/include",
-            dir_path + "/../bazel-Torch-TensorRT-Preview/external/tensorrt/include",
-            dir_path + "/../bazel-Torch-TensorRT/external/tensorrt/include", dir_path + "/../"
+            dir_path + "/torch_tensorrt/csrc", dir_path + "/torch_tensorrt/include",
+            dir_path + "/torch_tensorrt/include/torch_tensorrt",
+            TENSORRT_HOME + "/include",
         ],
         extra_compile_args=[
             "-Wno-deprecated",
@@ -473,6 +488,10 @@ ext_modules = [
         ] + (["-D_GLIBCXX_USE_CXX11_ABI=1"] if CXX11_ABI else ["-D_GLIBCXX_USE_CXX11_ABI=0"]),
         undef_macros=["NDEBUG"])
 ]
+
+if IS_WINDOWS:
+    ext_modules[0].extra_link_args.clear()
+    ext_modules[0].extra_compile_args.clear()
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()

@@ -41,7 +41,10 @@ pkg_tar(
 pkg_tar(
     name = "lib",
     srcs = select({
-        ":windows": ["//cpp/lib:torch_tensorrt.dll"],
+        ":windows": [
+            "//cpp/lib:torchtrt.dll",
+            "//cpp/lib:torchtrt_win_import"
+        ],
         "//conditions:default": [
             "//cpp/lib:libtorchtrt.so",
             "//cpp/lib:libtorchtrt_runtime.so",

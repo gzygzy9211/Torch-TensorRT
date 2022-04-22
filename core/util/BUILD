@@ -54,6 +54,10 @@ cc_library(
     hdrs = [
         "Exception.h",
     ],
+    deps = [
+        "//core/util/logging",
+    ],
+    local_defines = ["torch_tensorrt_core_EXPORT"],
 )
 
 cc_library(

@@ -28,6 +28,7 @@ cc_library(
         "//conditions:default": ["@libtorch//:libtorch"],
     }),
     alwayslink = True,
+    local_defines = ["torch_tensorrt_core_EXPORT"],
 )
 
 load("@rules_pkg//:pkg.bzl", "pkg_tar")

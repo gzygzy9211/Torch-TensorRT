@@ -6,12 +6,13 @@
 
 #include "NvInfer.h"
 #include "torch/csrc/jit/ir/ir.h"
+#include "core/util/macros.h"
 
 namespace torch_tensorrt {
 namespace core {
 namespace ir {
 
-struct Input {
+struct TORCHTRT_CORE_API Input {
   // Input(std::vector<int64_t> shape);
   // Input(std::vector<int64_t> min_shape, std::vector<int64_t> opt_shape, std::vector<int64_t> max_shape);
   Input(

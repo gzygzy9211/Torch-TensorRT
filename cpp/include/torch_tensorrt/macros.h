@@ -7,7 +7,14 @@
  */
 #pragma once
 
-#if defined(__GNUC__)
+#if defined(_MSC_VER)
+#if defined(torch_tensorrt_EXPORT)
+#define TORCHTRT_API __declspec(dllexport)
+#else
+#define TORCHTRT_API __declspec(dllimport)
+#endif
+#define TORCHTRT_HIDDEN
+#elif defined(__GNUC__)
 #define TORCHTRT_API __attribute__((__visibility__("default")))
 #define TORCHTRT_HIDDEN __attribute__((__visibility__("hidden")))
 #else

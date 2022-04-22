@@ -29,11 +29,13 @@ cc_library(
         "//core/partitioning",
         "//core/util/logging",
         "@tensorrt//:nvinfer",
+        "@tensorrt//:nvinferplugin",
     ] + select({
         ":use_pre_cxx11_abi": ["@libtorch_pre_cxx11_abi//:libtorch"],
         "//conditions:default": ["@libtorch//:libtorch"],
     }),
     alwayslink = True,
+    local_defines = ["torch_tensorrt_core_EXPORT"],
 )
 
 load("@rules_pkg//:pkg.bzl", "pkg_tar")

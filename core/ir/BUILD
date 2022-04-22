@@ -24,6 +24,7 @@ cc_library(
         ":use_pre_cxx11_abi":  ["@libtorch_pre_cxx11_abi//:libtorch"],
         "//conditions:default":  ["@libtorch//:libtorch"],
     }),
+    local_defines = ["torch_tensorrt_core_EXPORT"],
 )
 
 load("@rules_pkg//:pkg.bzl", "pkg_tar")

@@ -9,7 +9,17 @@
 #include "torch/custom_class.h"
 #include "ATen/Tensor.h"
 #include "c10/cuda/CUDAStream.h"
+#if defined(_WIN32) && defined(C10_BUILD_SHARED_LIBS)
+#undef TORCH_CUDA_CPP_API
+#define TORCH_CUDA_CPP_API
+#define FIX_CUDA_EVENT_INLINE
+#endif // defined(_WIN32) && defined(C10_BUILD_SHARED_LIBS)
 #include "ATen/cuda/CUDAEvent.h"
+#ifdef FIX_CUDA_EVENT_INLINE
+#undef TORCH_CUDA_CPP_API
+#define TORCH_CUDA_CPP_API C10_IMPORT
+#undef FIX_CUDA_EVENT_INLINE
+#endif // FIX_CUDA_EVENT_INLINE
 
 namespace torch_tensorrt {
 namespace core {
@@ -18,7 +28,7 @@ namespace runtime {
 using EngineID = int64_t;
 const std::string ABI_VERSION = "3";
 
-struct CudaDevice {
+struct TORCHTRT_CORE_API CudaDevice {
   int64_t id; // CUDA device id
   int64_t major; // CUDA compute major version
   int64_t minor; // CUDA compute minor version
@@ -34,9 +44,9 @@ struct CudaDevice {
   friend std::ostream& operator<<(std::ostream& os, const CudaDevice& device);
 };
 
-void set_cuda_device(CudaDevice& cuda_device);
+TORCHTRT_CORE_API void set_cuda_device(CudaDevice& cuda_device);
 // Gets the current active GPU (DLA will not show up through this)
-CudaDevice get_current_device();
+TORCHTRT_CORE_API CudaDevice get_current_device();
 
 c10::optional<CudaDevice> get_most_compatible_device(const CudaDevice& target_device);
 std::vector<CudaDevice> find_compatible_devices(const CudaDevice& target_device);
@@ -61,7 +71,7 @@ private:
   at::cuda::CUDAEvent event_;
 };
 
-struct TRTEngine : torch::CustomClassHolder {
+struct TORCHTRT_CORE_API TRTEngine : torch::CustomClassHolder {
   // Each engine needs it's own runtime object
   std::shared_ptr<nvinfer1::IRuntime> rt;
   std::shared_ptr<nvinfer1::ICudaEngine> cuda_engine;
@@ -84,7 +94,7 @@ struct TRTEngine : torch::CustomClassHolder {
   // c10::List<at::Tensor> Run(c10::List<at::Tensor> inputs);
 };
 
-std::vector<at::Tensor> execute_engine(std::vector<at::Tensor> inputs, c10::intrusive_ptr<TRTEngine> compiled_engine);
+TORCHTRT_CORE_API std::vector<at::Tensor> execute_engine(std::vector<at::Tensor> inputs, c10::intrusive_ptr<TRTEngine> compiled_engine);
 
 class DeviceList {
   using DeviceMap = std::unordered_map<int, CudaDevice>;

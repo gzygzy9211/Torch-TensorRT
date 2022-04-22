@@ -16,8 +16,10 @@ namespace trt = nvinfer1;
 namespace util {
 namespace logging {
 
+#if !defined(_MSC_VER)
 TorchTRTLogger::TorchTRTLogger(std::string prefix, Severity severity, bool color)
     : prefix_(prefix), reportable_severity_((LogLevel)severity), color_(color) {}
+#endif // !defined(_MSC_VER)
 
 TorchTRTLogger::TorchTRTLogger(std::string prefix, LogLevel lvl, bool color)
     : prefix_(prefix), reportable_severity_(lvl), color_(color) {}

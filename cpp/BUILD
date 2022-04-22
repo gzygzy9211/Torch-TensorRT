@@ -23,6 +23,7 @@ cc_library(
         "//core/util:prelude",
     ],
     alwayslink = True,
+    local_defines = ["torch_tensorrt_EXPORT"],
 )
 
 filegroup(

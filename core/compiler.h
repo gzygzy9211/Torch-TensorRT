@@ -20,15 +20,15 @@ struct CompileSpec {
   partitioning::PartitionInfo partition_info;
 };
 
-bool CheckMethodOperatorSupport(const torch::jit::script::Module& mod, std::string method_name);
+TORCHTRT_CORE_API bool CheckMethodOperatorSupport(const torch::jit::script::Module& mod, std::string method_name);
 
-std::string ConvertGraphToTRTEngine(const torch::jit::script::Module& mod, std::string method_name, CompileSpec cfg);
+TORCHTRT_CORE_API std::string ConvertGraphToTRTEngine(const torch::jit::script::Module& mod, std::string method_name, CompileSpec cfg);
 
-torch::jit::script::Module CompileGraph(const torch::jit::script::Module& module, CompileSpec cfg);
+TORCHTRT_CORE_API torch::jit::script::Module CompileGraph(const torch::jit::script::Module& module, CompileSpec cfg);
 
-torch::jit::script::Module EmbedEngineInNewModule(const std::string& engine, runtime::CudaDevice cuda_device);
+TORCHTRT_CORE_API torch::jit::script::Module EmbedEngineInNewModule(const std::string& engine, runtime::CudaDevice cuda_device);
 
-void set_device(const int gpu_id);
+TORCHTRT_CORE_API void set_device(const int gpu_id);
 
 } // namespace core
 } // namespace torch_tensorrt

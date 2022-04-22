@@ -4,6 +4,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include "logging/TorchTRTLogger.h"
 
 // Simplified version of the c10 Exception infrastructure
 // https://github.com/pytorch/pytorch/blob/master/c10/util/Exception.h
@@ -13,7 +14,7 @@
 
 namespace torch_tensorrt {
 
-class Error : public std::exception {
+class TORCHTRT_CORE_API Error : public std::exception {
   std::vector<std::string> msg_stack_;
   std::string msg_;
   const void* caller_;
