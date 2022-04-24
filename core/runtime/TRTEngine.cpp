@@ -125,7 +125,7 @@ c10::cuda::CUDAStream& TorchAllocator::get_stream() { return stream_; }
 at::cuda::CUDAEvent& TorchAllocator::get_event() { return event_; }
 cudaStream_t TorchAllocator::get_cuda_stream() const { return stream_.stream(); }
 
-#define PTR_STR(p) (reinterpret_cast<std::ostringstream*>(&(std::ostringstream() << (p)))->str())
+inline static std::string PTR_STR(void* ptr) { std::ostringstream os; os << ptr; return os.str();}
 
 void* TorchAllocator::allocate(uint64_t const size, uint64_t const alignment, nvinfer1::AllocatorFlags const flags) noexcept {
   c10::StreamGuard guard(stream_);
