@@ -1,0 +1,2 @@
+add_library(core_conversion_conversionctx OBJECT ConversionCtx.cpp)
+target_link_libraries(core_conversion_conversionctx PUBLIC core_util PRIVATE core_common)

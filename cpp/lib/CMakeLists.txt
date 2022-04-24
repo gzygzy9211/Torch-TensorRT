@@ -1,0 +1,11 @@
+add_library(torchtrt SHARED)
+target_link_libraries_recursive(torchtrt cpp_interface core_compiler)
+target_link_libraries(torchtrt nvinfer nvinfer_plugin torch torch_library)
+
+add_library(torchtrt_runtime SHARED)
+target_link_libraries_recursive(torchtrt_runtime core_runtime core_plugins)
+target_link_libraries(torchtrt_runtime nvinfer nvinfer_plugin torch torch_library)
+
+add_library(torchtrt_plugins SHARED)
+target_link_libraries_recursive(torchtrt_plugins core_plugins)
+target_link_libraries(torchtrt_plugins nvinfer nvinfer_plugin torch torch_library)

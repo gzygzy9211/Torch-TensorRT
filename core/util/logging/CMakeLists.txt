@@ -1,0 +1,2 @@
+add_library(core_util_logging OBJECT TorchTRTLogger.cpp)
+target_link_libraries(core_util_logging PRIVATE core_common)
