@@ -91,6 +91,11 @@ if BAZEL_EXE is None:
         sys.exit("Could not find bazel in PATH")
 
 
+CMAKE_EXE = which("cmake" if not IS_WINDOWS else 'cmake.exe')
+if CMAKE_EXE is None and JETPACK_VERSION is None:
+    sys.exc_info("Could not find cmake in PATH")
+
+
 PATCH_ELF_EXE = dir_path + '/patchelf'
 
 
@@ -184,7 +189,48 @@ def check_tensorrt_version():
         print('=============== !! WARNING !! ================')       
 
 
+def build_libtorchtrt_pre_cxx11_abi_cmake(develop=True, cxx11_abi=False):
+    if JETPACK_VERSION is not None:
+        return 
+    cmd = [CMAKE_EXE, '-S', f'{dir_path}/..', '-B', f'{dir_path}/core_build/']
+    cmd.append(f'-DTENSORRT_HOME={TENSORRT_HOME}')
+    cmd.append(f'-DCUDNN_HOME={CUDNN_HOME}')
+    cmd.append(f'-DPYTHON_EXECUTABLE={sys.executable}')
+
+    if not IS_WINDOWS:
+        if cxx11_abi:
+            cmd.append('-DCMAKE_CXX_FLAGS="_GLIBCXX_USE_CXX11_ABI=1"')
+            cmd.append('-DCMAKE_CUDA_FLAGS="_GLIBCXX_USE_CXX11_ABI=1"')
+        else:
+            cmd.append('-DCMAKE_CXX_FLAGS="_GLIBCXX_USE_CXX11_ABI=0"')
+            cmd.append('-DCMAKE_CUDA_FLAGS="_GLIBCXX_USE_CXX11_ABI=0"')
+
+    if develop:
+        cmd.append('-DTORCHTRT_DEVELOP=1')
+        cfg = 'RelWithDebInfo'
+    else:
+        cfg = 'Release'
+
+    print('configuring libtorchtrt')
+    subprocess.check_call(cmd)
+
+    cmd = [CMAKE_EXE, '--build', f'{dir_path}/core_build', '-j', str(os.cpu_count())]
+    if IS_WINDOWS:
+        cmd.append('--config')
+        cmd.append(cfg)
+
+    print('building libtorchtrt')
+    subprocess.check_call(cmd)
+
+    cmd = [CMAKE_EXE, '--install', f'{dir_path}/core_build']
+    subprocess.check_call(cmd)
+
+
 def build_libtorchtrt_pre_cxx11_abi(develop=True, use_dist_dir=True, cxx11_abi=False):
+    if JETPACK_VERSION is None:
+        build_libtorchtrt_pre_cxx11_abi_cmake(develop, cxx11_abi)
+        return
+
     with open(f'{dir_path}/../WORKSPACE', 'r') as tpl, open(f'{dir_path}/../WORKSPACE.bazel', 'w') as wksp:
         replacement = {
             '/path/to/cuda': cpp_extension.CUDA_HOME.replace('\\', '/'),
@@ -239,25 +285,18 @@ def copy_libtorchtrt(multilinux=False):
     print("copying library into module")
     if multilinux:
         copyfile(dir_path + "/build/libtrtorch_build/libtrtorch.so", dir_path + '/trtorch/lib/libtrtorch.so')
-    else:
+    elif JETPACK_VERSION is not None:
         if os.path.exists(f'{dir_path}/torch_tensorrt/lib'):
             rmtree(f'{dir_path}/torch_tensorrt/lib') \
                 if os.path.isdir(f'{dir_path}/torch_tensorrt/lib') \
                 else os.remove(f'{dir_path}/torch_tensorrt/lib')
-        if IS_WINDOWS:
-            import tarfile
-            with tarfile.open(dir_path + '/../bazel-bin/libtorchtrt.tar.gz', mode='r:gz') as tarf:
-                for member in tarf.getmembers():
-                    if not member.isfile():
-                        continue
-                    if os.path.exists(dir_path + '/' + member.name):
-                        os.system(('attrib -R ' + dir_path + '/' + member.name).replace('/', '\\'))
-                        os.system(('del ' + dir_path + '/' + member.name).replace('/', '\\'))
-                    tarf.extract(member, dir_path)
-        else:
-            os.system("tar -xzf ../bazel-bin/libtorchtrt.tar.gz --strip-components=2 -C " + dir_path + "/torch_tensorrt")
+        os.system("tar -xzf ../bazel-bin/libtorchtrt.tar.gz --strip-components=2 -C " + dir_path + "/torch_tensorrt")
+    else:
+        pass  # cmake has already installed torchtrt to the right place
 
     if IS_WINDOWS:
+        for dll in ['nvinfer.dll', 'nvinfer_plugin.dll', 'nvinfer_builder_resource.dll']:
+            copyfile(f'{TENSORRT_HOME}/lib/{dll}', f'{dir_path}/torch_tensorrt/lib/{dll}')
         return
 
     # TODO: complete windows building

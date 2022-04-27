@@ -60,3 +60,4 @@ examples/int8/datasets/data/*
 env/**/*
 bazel-Torch-TensorRT-Preview
 build
+py/core_build

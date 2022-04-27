@@ -1,6 +1,3 @@
-import imp
-
-
 import ctypes
 import os.path as osp
 
@@ -33,16 +30,29 @@ def bootstrap():
 
     prev_error_mode = k32.SetErrorMode(0x0001)
     torchtrt_dll_fullpath = f'{osp.dirname(__file__)}/lib/torchtrt.dll'
+    deps_to_load = [
+        'nvinfer_builder_resource.dll'
+    ]
 
     try:
         path_handle = k32.AddDllDirectory(osp.dirname(torchtrt_dll_fullpath))
         path2_handle = k32.AddDllDirectory(f'{osp.dirname(torch.__file__)}/lib')
-        print(path_handle, path2_handle)
-        # torch.ops.load_library(torchtrt_dll_fullpath)
+        # print(path_handle, path2_handle)
         dll_handle = k32.LoadLibraryExW(torchtrt_dll_fullpath, None,
                                         LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
                                         LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR)
-        print(dll_handle)
-        print(ctypes.get_last_error())
+        # print(dll_handle)
+        load_err = ctypes.get_last_error()
+        if load_err != 0:
+            raise ImportError(f'fail to load component ({load_err})')
+        for dll in (f'{osp.dirname(__file__)}/lib/{dll}' for dll in deps_to_load):
+            dll_handle = k32.LoadLibraryExW(dll, None,
+                                            LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
+                                            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR)
+            # print(dll_handle)
+            load_err = ctypes.get_last_error()
+            if load_err != 0:
+                raise ImportError(f'fail to load component ({load_err})')
+
     finally:
         k32.SetErrorMode(prev_error_mode)
