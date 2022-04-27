@@ -26,14 +26,12 @@ target_link_libraries(core_compiler
             PUBLIC core_ir
             PUBLIC core_plugins
             PRIVATE core_common)
-# set_target_properties(core_compiler
-#                       core_conversion
-#                       core_conversion_conversionctx
-#                       core_conversion_converters
-#                       core_conversion_evaluators
-#                       core_conversion_var
-#                       core_runtime
-# 
-#                       PROPERTIES
-#                       INTERFACE_COMPILE_DEFINITIONS torch_tensorrt_core_EXPORT
-#                       LINK_LIBRARIES)
+
+set(torchtrt_core_header_dir ${CMAKE_CURRENT_SOURCE_DIR}/..)
+file(GLOB_RECURSE torchtrt_core_headers RELATIVE ${torchtrt_core_header_dir}
+     ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
+list(REMOVE_ITEM torchtrt_core_headers
+     "core/conversion/evaluators/eval_macros.h"
+     "core/conversion/evaluators/eval_util.h")
+message(STATUS "core_headers = ${torchtrt_core_headers}")
+message(STATUS "core_header_dir = ${torchtrt_core_header_dir}")

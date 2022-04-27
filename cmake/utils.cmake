@@ -45,3 +45,21 @@ macro(target_link_libraries_recursive _target)
     endforeach()
 
 endmacro()
+
+function(install_headers)
+
+    set(files "${ARGV}")
+    list(POP_BACK files dst_root)
+    list(POP_BACK files src_root)
+
+    foreach(_f ${files})
+        string(REGEX REPLACE "[/\\][^/\\]+$" "" _subdir ${_f})
+        install(FILES "${src_root}/${_f}" DESTINATION "${dst_root}/${_subdir}")
+    endforeach()
+    unset(_f)
+    unset(_subdir)
+    unset(files)
+    unset(dst_root)
+    unset(src_root)
+
+endfunction()
