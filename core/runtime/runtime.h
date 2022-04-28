@@ -39,7 +39,7 @@ struct TORCHTRT_CORE_API CudaDevice {
   CudaDevice(int64_t gpu_id, nvinfer1::DeviceType device_type);
   CudaDevice(std::string serialized_device_info);
   CudaDevice& operator=(const CudaDevice& other);
-  std::string serialize();
+  std::string serialize() const;
   std::string getSMCapability() const;
   friend std::ostream& operator<<(std::ostream& os, const CudaDevice& device);
 };
@@ -51,7 +51,7 @@ TORCHTRT_CORE_API CudaDevice get_current_device();
 c10::optional<CudaDevice> get_most_compatible_device(const CudaDevice& target_device);
 std::vector<CudaDevice> find_compatible_devices(const CudaDevice& target_device);
 
-std::string serialize_device(CudaDevice& cuda_device);
+std::string serialize_device(const CudaDevice& cuda_device);
 CudaDevice deserialize_device(std::string device_info);
 
 class TorchAllocator : public nvinfer1::IGpuAllocator {
@@ -90,6 +90,7 @@ struct TORCHTRT_CORE_API TRTEngine : torch::CustomClassHolder {
   TRTEngine(std::vector<std::string> serialized_info);
   TRTEngine(std::string mod_name, std::string serialized_engine, CudaDevice cuda_device);
   TRTEngine& operator=(const TRTEngine& other);
+  std::vector<std::string> serialize() const;
   // TODO: Implement a call method
   // c10::List<at::Tensor> Run(c10::List<at::Tensor> inputs);
 };

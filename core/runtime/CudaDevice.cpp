@@ -75,7 +75,7 @@ CudaDevice& CudaDevice::operator=(const CudaDevice& other) {
   return (*this);
 }
 
-std::string CudaDevice::serialize() {
+std::string CudaDevice::serialize() const {
   std::vector<std::string> content;
   content.resize(DEVICE_NAME_IDX + 1);
 

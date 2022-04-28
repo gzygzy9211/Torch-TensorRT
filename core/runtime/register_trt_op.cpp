@@ -6,6 +6,8 @@
 #include "core/runtime/runtime.h"
 #include "core/util/prelude.h"
 
+#include "core/conversion/tensorcontainer/TensorContainer.h"
+
 namespace torch_tensorrt {
 namespace core {
 namespace runtime {
@@ -139,7 +141,21 @@ std::vector<at::Tensor> execute_engine(std::vector<at::Tensor> inputs, c10::intr
   return outputs;
 }
 
+
 TORCH_LIBRARY(tensorrt, m) {
+  using torch_tensorrt::core::conversion::TensorContainer;
+  m.class_< TensorContainer>("TensorContainer").def(torch::init<>());
+  m.class_<TRTEngine>("Engine")
+        .def(torch::init<std::vector<std::string>>())
+        // TODO: .def("__call__", &TRTEngine::Run)
+        // TODO: .def("run", &TRTEngine::Run)
+        .def_pickle(
+            [](const c10::intrusive_ptr<TRTEngine>& self) -> std::vector<std::string> {
+              return self->serialize();
+            },
+            [](std::vector<std::string> seralized_info) -> c10::intrusive_ptr<TRTEngine> {
+              return c10::make_intrusive<TRTEngine>(std::move(seralized_info));
+            });
   m.def("execute_engine", execute_engine);
 }
 
