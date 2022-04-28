@@ -31,11 +31,9 @@ else()
     message(STATUS "using libtorch ${LIBTORCH_HOME}/share/cmake")
 endif()
 
-if (NOT ${CMAKE_CUDA_COMPILER} MATCHES "/bin/nvcc$")
-    message(FATAL_ERROR "Fail to infer CUDA_TOOLKIT_ROOT_DIR from CUDA compiler path ${CMAKE_CUDA_COMPILER}")
-endif()
+get_filename_component(CUDA_TOOLKIT_ROOT_DIR ${CMAKE_CUDA_COMPILER} DIRECTORY)
+get_filename_component(CUDA_TOOLKIT_ROOT_DIR ${CUDA_TOOLKIT_ROOT_DIR} DIRECTORY)  # for find_package(CUDA) in caffe2
 
-string(REGEX REPLACE "/bin/nvcc$" "/" CUDA_TOOLKIT_ROOT_DIR "${CMAKE_CUDA_COMPILER}")  # for find_package(CUDA) in caffe2
 
 find_package(Torch REQUIRED)
 
