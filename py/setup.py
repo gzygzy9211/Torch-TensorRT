@@ -87,7 +87,7 @@ BAZEL_EXE = which("bazelisk")
 
 if BAZEL_EXE is None:
     BAZEL_EXE = which("bazel" if not IS_WINDOWS else "bazel.exe")
-    if BAZEL_EXE is None:
+    if BAZEL_EXE is None and JETPACK_VERSION is not None:
         sys.exit("Could not find bazel in PATH")
 
 
@@ -196,14 +196,15 @@ def build_libtorchtrt_pre_cxx11_abi_cmake(develop=True, cxx11_abi=False):
     cmd.append(f'-DTENSORRT_HOME={TENSORRT_HOME}')
     cmd.append(f'-DCUDNN_HOME={CUDNN_HOME}')
     cmd.append(f'-DPYTHON_EXECUTABLE={sys.executable}')
+    cmd.append(f'-DCMAKE_CUDA_COMPILER={cpp_extension.CUDA_HOME}/bin/nvcc')
 
     if not IS_WINDOWS:
         if cxx11_abi:
-            cmd.append('-DCMAKE_CXX_FLAGS="_GLIBCXX_USE_CXX11_ABI=1"')
-            cmd.append('-DCMAKE_CUDA_FLAGS="_GLIBCXX_USE_CXX11_ABI=1"')
+            cmd.append('-DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=1"')
+            cmd.append('-DCMAKE_CUDA_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=1"')
         else:
-            cmd.append('-DCMAKE_CXX_FLAGS="_GLIBCXX_USE_CXX11_ABI=0"')
-            cmd.append('-DCMAKE_CUDA_FLAGS="_GLIBCXX_USE_CXX11_ABI=0"')
+            cmd.append('-DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"')
+            cmd.append('-DCMAKE_CUDA_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"')
 
     if develop:
         cmd.append('-DTORCHTRT_DEVELOP=1')

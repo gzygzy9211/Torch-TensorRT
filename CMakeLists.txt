@@ -17,6 +17,10 @@ else()
 endif()
 
 set(CMAKE_CXX_STANDARD 14)
+if(NOT MSVC)
+    set(CMAKE_CXX_FLAGS "-fPIC ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CUDA_FLAGS "-fPIC ${CMAKE_CUDA_FLAGS}")
+endif()
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/third_party/third_party.cmake)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/core)
